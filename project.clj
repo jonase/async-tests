@@ -76,4 +76,9 @@
      :compiler {:optimizations :whitespace
                 :pretty-print false
                 :static-fns true
-                :output-to "timers.js"}}]})
+                :output-to "timers.js"}}
+    {:id "paint"
+     :source-paths ["src/async_test/paint"]
+     :compiler {:optimizations :whitespace
+                :pretty-print true
+                :output-to "paint.js"}}]})
