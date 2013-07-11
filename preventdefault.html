@@ -1,0 +1,21 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <title>preventDefault example</title>
+  </head>
+  
+  <body>
+    
+    <p>Please enter your name using lowercase letters only.</p>
+    <form>
+      <label>Callback: </label><input type="text" id="my-textbox"/><br>
+      <label>Async: </label><input type="text" id="my-textbox-async"/>
+    </form>
+
+    <script src="preventdefault.js"></script>
+    <script>
+      async_test.preventdefault.core.init();
+      async_test.preventdefault.core.init_async();
+    </script>
+  </body>
+</html>

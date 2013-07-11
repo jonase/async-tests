@@ -76,4 +76,10 @@
      :compiler {:optimizations :whitespace
                 :pretty-print false
                 :static-fns true
-                :output-to "timers.js"}}]})
+                :output-to "timers.js"}}
+    {:id "preventdefault"
+     :source-paths ["src/async_test/preventdefault"]
+     :compiler {:optimizations :whitespace
+                :pretty-print false
+                :static-fns true
+                :output-to "preventdefault.js"}}]})
