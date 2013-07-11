@@ -34,26 +34,23 @@
   [(- (.-pageX evt) (.-offsetLeft (.-target evt)))
    (- (.-pageY evt) (.-offsetTop (.-target evt)))])
 
-(def canvas-mousedown-channel
-  (let [channel (chan)]
-    (.addEventListener interaction-canvas
-                       "mousedown"
-                       #(put! channel (pos %)))
-    channel))
+(defn mouse-channel
+  ([element event-type]
+     (mouse-channel element event-type (chan)))
+  ([element event-type channel]
+     (let [writer #(put! channel (pos %))]
+       (.addEventListener element event-type writer)
+       {:channel channel
+        :unsubscribe #(.removeEventListener element event-type writer)})))
 
-(def canvas-mouseup-channel
-  (let [channel (chan)]
-    (.addEventListener interaction-canvas
-                       "mouseup"
-                       #(put! channel (pos %)))
-    channel))
+(defn canvas-mousedown-channel []
+  (mouse-channel interaction-canvas "mousedown"))
 
-(def canvas-mousemove-channel
-  (let [channel (chan (sliding-buffer 1))]
-    (.addEventListener interaction-canvas
-                       "mousemove"
-                       #(put! channel (pos %)))
-    channel))
+(defn canvas-mouseup-channel []
+  (mouse-channel interaction-canvas "mouseup"))
+
+(defn canvas-mousemove-channel []
+  (mouse-channel interaction-canvas "mousemove" (chan (sliding-buffer 1))))
 
 (def button-channel (chan))
 
@@ -87,24 +84,62 @@
 (defmulti action identity)
 
 (defmethod action :line [_]
-  (go (let [p (<! canvas-mousedown-channel)]
-        (loop [] 
-          (alt!
-           canvas-mousemove-channel ([q] (do (clear-interaction-canvas)
-                                             (draw-line interaction-ctx p q)
-                                             (recur)))
-           canvas-mouseup-channel ([q] (do (clear-interaction-canvas)
-                                           (draw-line paint-ctx p q))))))))
+  (let [mousedown (canvas-mousedown-channel)
+        mouseup (canvas-mouseup-channel)
+        mousemove (canvas-mousemove-channel)
+        unsubscribe #(do ((:unsubscribe mousedown))
+                         ((:unsubscribe mouseup))
+                         ((:unsubscribe mousemove)))
+        mousedown-channel (:channel mousedown)
+        mouseup-channel (:channel mouseup)
+        mousemove-channel (:channel mousemove)]
+    (go (let [p (<! mousedown-channel)]
+          (loop [] 
+            (alt!
+             mousemove-channel ([q] (do (clear-interaction-canvas)
+                                        (draw-line interaction-ctx p q)
+                                        (recur)))
+             mouseup-channel ([q] (do (clear-interaction-canvas)
+                                      (draw-line paint-ctx p q))))))
+        (unsubscribe))))
+
+(defmethod action :line [_]
+  (let [mousedown (canvas-mousedown-channel)
+        mouseup (canvas-mouseup-channel)
+        mousemove (canvas-mousemove-channel)]
+    (go (let [p (<! (:channel mousedown))]
+          (loop [] 
+            (alt!
+             (:channel mousemove)
+             ([q] (do (clear-interaction-canvas)
+                      (draw-line interaction-ctx p q)
+                      (recur)))
+             (:channel mouseup) 
+             ([q] (do (clear-interaction-canvas)
+                      (draw-line paint-ctx p q))))))
+        (do ((:unsubscribe mousedown))
+            ((:unsubscribe mouseup))
+            ((:unsubscribe mousemove))))))
 
 (defmethod action :circle [_]
-  (go (let [p (<! canvas-mousedown-channel)]
-        (loop []
-          (alt!
-           canvas-mousemove-channel ([q] (do (clear-interaction-canvas)
-                                             (draw-circle interaction-ctx p (len p q))
-                                             (recur)))
-           canvas-mouseup-channel ([q] (do (clear-interaction-canvas)
-                                           (draw-circle paint-ctx p (len p q)))))))))
+  (let [mousedown (canvas-mousedown-channel)
+        mouseup (canvas-mouseup-channel)
+        mousemove (canvas-mousemove-channel)]
+    (go (let [p (<! (:channel mousedown))]
+          (loop [] 
+            (alt!
+             (:channel mousemove)
+             ([q] (do (clear-interaction-canvas)
+                      (draw-circle interaction-ctx p (len p q))
+                      (recur)))
+             (:channel mouseup) 
+             ([q] (do (clear-interaction-canvas)
+                      (draw-circle paint-ctx p (len p q)))))))
+        (do ((:unsubscribe mousedown))
+            ((:unsubscribe mouseup))
+            ((:unsubscribe mousemove))))))
+
+
 
 ;; Initialize
 (defn init []
