@@ -1,4 +1,6 @@
-(ns async-tests.paint.utils)
+(ns async-tests.paint.utils
+  (:require [cljs.core.async :refer [chan put! sliding-buffer]])
+  (:require-macros [cljs.core.async.macros :refer [go alt!]]))
 
 (defn log [x]
   (.log js/console (pr-str x)))
@@ -14,3 +16,9 @@
     (Math/sqrt (+ (* a a)
                 (* b b)))))
 
+(defn fan-in [& channels]
+  (let [channel (chan)]
+    (doseq [ch channels]
+      (go (while true
+            (>! channel (<! ch)))))
+    channel))

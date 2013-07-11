@@ -1,6 +1,16 @@
 <!doctype html>
 <html>
   <head>
+    <style>
+      #paint-canvas {
+        position: absolute;
+        border: 1px solid black;
+      }
+      #interaction-canvas {
+        position: absolute;
+        border: 1px solid red;
+      }
+    </style>
   </head>
   <body>
     <p>Paint with <a href="http://github.com/clojure/core.async">core.async</a>. 
@@ -15,9 +25,10 @@
     <br>
     <canvas id="paint-canvas"
 	    width="800px"
-	    height="600px"
-	    style="border: 1px solid black">
-    </canvas>
+	    height="600px"></canvas>
+    <canvas id="interaction-canvas"
+	    width="800px"
+	    height="600px"></canvas>
     <script src="paint.js"></script>
     <script>async_tests.paint.core.init()</script>
   </body>

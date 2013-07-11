@@ -4,13 +4,15 @@
   (:require-macros [cljs.core.async.macros :refer [go alt!]]))
 
 ;; Elements on the page
-(def canvas        (by-id "paint-canvas"))
-(def line-button   (by-id "line"))
-(def circle-button (by-id "circle"))
-(def stroke-color  (by-id "stroke-color"))
-(def stroke-width  (by-id "stroke-width"))
+(def paint-canvas        (by-id "paint-canvas"))
+(def interaction-canvas  (by-id "interaction-canvas"))
+(def line-button         (by-id "line"))
+(def circle-button       (by-id "circle"))
+(def stroke-color        (by-id "stroke-color"))
+(def stroke-width        (by-id "stroke-width"))
 
-(def ctx (.getContext canvas "2d"))
+(def paint-ctx (.getContext paint-canvas "2d"))
+(def interaction-ctx (.getContext interaction-canvas "2d"))
 
 ;; Channels
 
@@ -28,12 +30,29 @@
                        #(put! channel (js/parseInt (-> % .-target .-value))))
     channel))
 
-(def canvas-click-channel
+(defn pos [evt]
+  [(- (.-pageX evt) (.-offsetLeft (.-target evt)))
+   (- (.-pageY evt) (.-offsetTop (.-target evt)))])
+
+(def canvas-mousedown-channel
   (let [channel (chan)]
-    (.addEventListener canvas
+    (.addEventListener interaction-canvas
                        "mousedown"
-                       #(put! channel [(- (.-pageX %) (.-offsetLeft canvas))
-                                       (- (.-pageY %) (.-offsetTop canvas))]))
+                       #(put! channel (pos %)))
+    channel))
+
+(def canvas-mouseup-channel
+  (let [channel (chan)]
+    (.addEventListener interaction-canvas
+                       "mouseup"
+                       #(put! channel (pos %)))
+    channel))
+
+(def canvas-mousemove-channel
+  (let [channel (chan (sliding-buffer 1))]
+    (.addEventListener interaction-canvas
+                       "mousemove"
+                       #(put! channel (pos %)))
     channel))
 
 (def button-channel (chan))
@@ -48,37 +67,51 @@
 
 ;; Drawing to canvas
 
-(defn draw-line [[px py] [qx qy]]
+(defn draw-line [ctx [px py] [qx qy]]
   (.beginPath ctx)
   (.moveTo ctx px py)
   (.lineTo ctx qx qy)
   (.stroke ctx)
   (.closePath ctx))
 
-(defn draw-circle [[cx cy] r]
+(defn draw-circle [ctx [cx cy] r]
   (.beginPath ctx)
   (.arc ctx cx cy r 0 (* 2 PI) true)
   (.stroke ctx)
   (.closePath ctx))
 
+(defn clear-interaction-canvas []
+  (.clearRect interaction-ctx 0 0 800 600))
+
 ;; Actions
 (defmulti action identity)
 
 (defmethod action :line [_]
-  (go (let [p (<! canvas-click-channel)
-            q (<! canvas-click-channel)]
-        (draw-line p q))))
+  (go (let [p (<! canvas-mousedown-channel)]
+        (loop [] 
+          (alt!
+           canvas-mousemove-channel ([q] (do (clear-interaction-canvas)
+                                             (draw-line interaction-ctx p q)
+                                             (recur)))
+           canvas-mouseup-channel ([q] (do (clear-interaction-canvas)
+                                           (draw-line paint-ctx p q))))))))
 
 (defmethod action :circle [_]
-  (go (let [p (<! canvas-click-channel)
-            q (<! canvas-click-channel)]
-        (draw-circle p (len p q)))))
+  (go (let [p (<! canvas-mousedown-channel)]
+        (loop []
+          (alt!
+           canvas-mousemove-channel ([q] (do (clear-interaction-canvas)
+                                             (draw-circle interaction-ctx p (len p q))
+                                             (recur)))
+           canvas-mouseup-channel ([q] (do (clear-interaction-canvas)
+                                           (draw-circle paint-ctx p (len p q)))))))))
 
 ;; Initialize
 (defn init []
+  (aset interaction-ctx "strokeStyle" "gray")
   (go 
    (while true
-     (alt!
-      button-channel ([b] (action b))
-      stroke-color-channel ([color] (aset ctx "strokeStyle" color))
-      stroke-width-channel ([width] (aset ctx "lineWidth" width))))))
+     (alt! button-channel ([b] (action b))
+           stroke-color-channel ([color] (aset paint-ctx "strokeStyle" color))
+           stroke-width-channel ([width] (aset paint-ctx "lineWidth" width))))))
+
