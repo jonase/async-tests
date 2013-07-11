@@ -1,7 +1,7 @@
 (ns async-tests.paint.core
   (:require [async-tests.paint.utils :refer [PI len log by-id]]
             [cljs.core.async :refer [chan put! sliding-buffer]])
-  (:require-macros [cljs.core.async.macros :refer [go]]))
+  (:require-macros [cljs.core.async.macros :refer [go alt!]]))
 
 ;; Elements on the page
 (def canvas        (by-id "paint-canvas"))
@@ -9,13 +9,11 @@
 (def circle-button (by-id "circle"))
 (def stroke-color  (by-id "stroke-color"))
 (def stroke-width  (by-id "stroke-width"))
-(def status        (by-id "status"))
 
 (def ctx (.getContext canvas "2d"))
 
 ;; Channels
 
-;; A channel where changes to the stroke-color is added
 (def stroke-color-channel
   (let [channel (chan)]
     (.addEventListener stroke-color
@@ -23,7 +21,6 @@
                        #(put! channel (-> % .-target .-value)))
     channel))
 
-;; A channel where changes to the stroke width is added
 (def stroke-width-channel
   (let [channel (chan)]
     (.addEventListener stroke-width
@@ -48,6 +45,7 @@
 
 (set-button-channels! line-button circle-button)
 
+
 ;; Drawing to canvas
 
 (defn draw-line [[px py] [qx qy]]
@@ -66,30 +64,21 @@
 ;; Actions
 (defmulti action identity)
 
-(defn set-status [text]
-  (aset status "innerHTML" text))
-
 (defmethod action :line [_]
-  (go (let [_ (set-status "Choose start point")
-            p (<! canvas-click-channel)
-            _ (set-status "Choose end point")
-            q (<! canvas-click-channel)
-            _ (set-status "Line Drawn")]
+  (go (let [p (<! canvas-click-channel)
+            q (<! canvas-click-channel)]
         (draw-line p q))))
 
 (defmethod action :circle [_]
-  (go (let [_ (set-status "Choose mid point")
-            p (<! canvas-click-channel)
-            _ (set-status "Choose radius")
-            q (<! canvas-click-channel)
-            _ (set-status "Circle drawn")]
+  (go (let [p (<! canvas-click-channel)
+            q (<! canvas-click-channel)]
         (draw-circle p (len p q)))))
 
 ;; Initialize
 (defn init []
-  (go (while true
-        (action (<! button-channel))))
-  (go (while true
-        (aset ctx "strokeStyle" (<! stroke-color-channel))))
-  (go (while true
-        (aset ctx "lineWidth" (<! stroke-width-channel)))))
+  (go 
+   (while true
+     (alt!
+      button-channel ([b] (action b))
+      stroke-color-channel ([color] (aset ctx "strokeStyle" color))
+      stroke-width-channel ([width] (aset ctx "lineWidth" width))))))
