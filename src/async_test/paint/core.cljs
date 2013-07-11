@@ -83,25 +83,9 @@
 ;; Actions
 (defmulti action identity)
 
-(defmethod action :line [_]
-  (let [mousedown (canvas-mousedown-channel)
-        mouseup (canvas-mouseup-channel)
-        mousemove (canvas-mousemove-channel)
-        unsubscribe #(do ((:unsubscribe mousedown))
-                         ((:unsubscribe mouseup))
-                         ((:unsubscribe mousemove)))
-        mousedown-channel (:channel mousedown)
-        mouseup-channel (:channel mouseup)
-        mousemove-channel (:channel mousemove)]
-    (go (let [p (<! mousedown-channel)]
-          (loop [] 
-            (alt!
-             mousemove-channel ([q] (do (clear-interaction-canvas)
-                                        (draw-line interaction-ctx p q)
-                                        (recur)))
-             mouseup-channel ([q] (do (clear-interaction-canvas)
-                                      (draw-line paint-ctx p q))))))
-        (unsubscribe))))
+(defn unsubscribe [channel-maps]
+  (doseq [{unsub :unsubscribe} channel-maps]
+    (unsub)))
 
 (defmethod action :line [_]
   (let [mousedown (canvas-mousedown-channel)
@@ -117,9 +101,7 @@
              (:channel mouseup) 
              ([q] (do (clear-interaction-canvas)
                       (draw-line paint-ctx p q))))))
-        (do ((:unsubscribe mousedown))
-            ((:unsubscribe mouseup))
-            ((:unsubscribe mousemove))))))
+        (unsubscribe mousedown mouseup mousemove))))
 
 (defmethod action :circle [_]
   (let [mousedown (canvas-mousedown-channel)
@@ -135,11 +117,7 @@
              (:channel mouseup) 
              ([q] (do (clear-interaction-canvas)
                       (draw-circle paint-ctx p (len p q)))))))
-        (do ((:unsubscribe mousedown))
-            ((:unsubscribe mouseup))
-            ((:unsubscribe mousemove))))))
-
-
+        (unsubscribe mousedown mouseup mousemove))))
 
 ;; Initialize
 (defn init []
